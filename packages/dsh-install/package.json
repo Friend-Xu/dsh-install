@@ -11,6 +11,10 @@
     "installer",
     "plugin"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Friend-Xu/dsh-install.git"
+  },
   "type": "module",
   "publishConfig": {
     "access": "public"

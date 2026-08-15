@@ -2,6 +2,9 @@
 
 安装管理 DeepSeek Harness 的 MCP 服务器与 skills 的插件工作区。
 
+[![npm](https://img.shields.io/npm/v/@dsh-tools/dsh-install)](https://www.npmjs.com/package/@dsh-tools/dsh-install)
+[![GitHub](https://img.shields.io/badge/GitHub-Friend--Xu%2Fdsh--install-blue)](https://github.com/Friend-Xu/dsh-install)
+
 | 路径 | 内容 |
 |---|---|
 | [`packages/dsh-install`](packages/dsh-install/README.md) | 插件本体（`dsh.bundle` 单包双行：`mcp-registry` 聚合器 + `install-cli` 管理面） |
