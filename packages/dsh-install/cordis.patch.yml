@@ -1,0 +1,27 @@
+# dsh-install bundle patch — two rows:
+#
+# - mcp-registry: the aggregator. It reads the user+project registries and
+#   mounts one mcp-client child instance per enabled server, watching both
+#   files for changes. Disabled by default: installing a plugin must never
+#   silently start spawning child processes. Enable it in a consuming
+#   profile's cordis.patch.yml:
+#
+#       - id: mcp-registry
+#         disabled: false
+#
+# - install-cli: the management surface. Always on but inert: it only parses
+#   the command line when the first argument is a known management verb
+#   (mcp/skills/marketplace/plugin/search), and it registers the slash
+#   commands (/mcp, /skills, ...) on ctx.commands for web/TUI surfaces.
+#   In a plain web/tui profile a bare boot stays silent; in a dedicated
+#   `install` profile this row is the app that parses and exits.
+#
+# Row order carries no load semantics; the grouping is for readers.
+
+- insert:
+    - id: mcp-registry
+      name: '@dsh-tools/dsh-install'
+      disabled: true
+
+    - id: install-cli
+      name: '@dsh-tools/dsh-install/cli'

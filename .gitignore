@@ -1,0 +1,8 @@
+node_modules/
+.pnpm-store/
+.local/
+packages/*/node_modules/
+packages/*/lib/
+*.tmp
+*.tgz
+test-out.txt
