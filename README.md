@@ -61,14 +61,40 @@ dsh --profile install uninstall --dry-run                        # 整体卸载�
 | [`packages/dsh-install/README.md`](packages/dsh-install/README.md) | **完整使用文档**：命令速查、密钥安全、热重载矩阵、FAQ |
 | [`DESIGN.md`](DESIGN.md) | 设计锚点（存储模型、聚合器语义、生态摄取、报告矩阵、决策记录） |
 
+## 项目本体怎么装
+
+### 方式一：npm 包（日常使用，推荐）
+
+```powershell
+dsh plugin --profile install add @dsh-tools/dsh-install
+dsh plugin --profile web add @dsh-tools/dsh-install
+```
+
+### 方式二：从源码构建安装（开发/试用未发布版本）
+
+```powershell
+git clone https://github.com/Friend-Xu/dsh-install.git
+cd dsh-install
+pnpm install
+pnpm --dir packages/dsh-install run test        # 跑测试确认源码健康
+pnpm --dir packages/dsh-install run build       # tsdown → lib/
+pnpm --dir packages/dsh-install pack --pack-destination .\.local\dist
+# 产出 .\.local\dist\dsh-tools-dsh-install-0.1.0.tgz
+
+# 安装（注意：用 tarball 而不是目录；绝对路径里不要含 & 等 shell 特殊字符）
+dsh plugin --profile install add D:\...\dsh-install\.local\dist\dsh-tools-dsh-install-0.1.0.tgz
+dsh plugin --profile web add D:\...\dsh-install\.local\dist\dsh-tools-dsh-install-0.1.0.tgz
+```
+
+装完后续步骤与方式一完全相同（启用 `mcp-registry` 行 → 重启一次 web → `mcp add`）。
+
 ## 开发
 
 ```console
-pnpm install
 pnpm --dir packages/dsh-install run test        # 136 单元/集成测试（沙箱内可跑）
 pnpm --dir packages/dsh-install run typecheck
-pnpm --dir packages/dsh-install run build       # tsdown → lib/
 pnpm --dir packages/dsh-install exec vitest run --config vitest.e2e.config.mjs
+                                                # spawn e2e（本地 fixture + 真实 npx）
 ```
 
 已知安装注意事项：本地目录 link 安装依赖不进 profile（用 tarball）；
