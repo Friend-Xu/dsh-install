@@ -1,223 +1,176 @@
 # dsh-install
 
-Install and manage **MCP servers** and **skills** for the DeepSeek Harness —
-a registry-backed installer with live remounting, slash commands, ecosystem
-importers, marketplaces, and auditable install reports.
+> Install and manage **MCP servers** and **skills** for the DeepSeek Harness.
+> 注册表驱动的安装管理插件：CLI + 斜杠命令 + 热挂载聚合器 + 生态导入 + 卸载 + 逐条裁决审计。
 
-```console
-$ dsh --profile install mcp add github
-$ dsh --profile install mcp add myapi --transport http --url https://api.example.com/mcp
-$ dsh --profile install skills add github:obra/superpowers#brainstorming@v1.0
+[![npm](https://img.shields.io/npm/v/@dsh-tools/dsh-install)](https://www.npmjs.com/package/@dsh-tools/dsh-install)
+[![GitHub](https://img.shields.io/badge/GitHub-Friend--Xu%2Fdsh--install-blue)](https://github.com/Friend-Xu/dsh-install)
+
+---
+
+## 快速上手（5 分钟）
+
+### 1. 安装插件包（一次性，每个 profile 各装一次）
+
+```powershell
+dsh plugin --profile install add @dsh-tools/dsh-install   # 管理面（CLI 命令住这里）
+dsh plugin --profile web add @dsh-tools/dsh-install       # 消费面（挂载服务器、斜杠命令）
 ```
 
-## Why this exists
+> 首次会初始化 `install` profile 并下载 dsh-base（数百 MB，属正常）。
+> 输出里的 `[WARN] Issues with peer dependencies found` 是**设计预期**：
+> 本插件把 cordis 等声明为 peerDependencies，让 pnpm 不安装、复用 harness
+> 自带的那份（零重复、零版本漂移），警告可无视。
 
-The harness can already *consume* MCP servers (`@deepseek-ai/dsh-mcp-client`)
-and skills (`dsh-skill-filesystem`), but installing them meant hand-editing
-`cordis.yml` or copying files around. This bundle adds the management plane
-Claude Code / Codex / CC Switch users expect, on top of the existing runtime:
+### 2. 启用聚合器行（一次手工配置）
 
-| Surface | Command |
-|---|---|
-| CLI (management profile) | `dsh --profile install mcp|skills|search|marketplace|plugin ...` |
-| Slash (web/TUI) | `/mcp`, `/skills` |
-| Runtime | `mcp-registry` aggregator row (live remount, no restarts) |
-
-## Install
-
-One package, two rows. Install it into the profiles you use:
-
-```console
-# 1. A dedicated management profile (CLI surface)
-dsh plugin --profile install add @dsh-tools/dsh-install
-
-# 2. Every profile that should MOUNT the installed servers (e.g. web)
-dsh plugin --profile web add @dsh-tools/dsh-install
-```
-
-Then enable the aggregator row in the consuming profile's
-`cordis.patch.yml` (installing a plugin must never silently start spawning
-child processes — the row ships disabled, like the harness's own
-`skill-badge`):
+用记事本打开 `<DSH_HOME>\profiles\web\cordis.patch.yml`（默认
+`C:\Users\<你>\.dsh\profiles\web\cordis.patch.yml`），把空列表 `[]` 改为：
 
 ```yaml
-# $DSH_HOME/profiles/web/cordis.patch.yml
 - id: mcp-registry
   disabled: false
 ```
 
-That's the whole setup. Registry edits hot-reload: the aggregator watches
-both files and remounts by server name, so `mcp add` in one terminal is
-live in the running web host with zero restarts.
+保存。默认禁用是刻意设计：装插件不应静默拉起子进程（与 harness 自带
+skill-badge 行的先例一致），启用必须显式。
 
-## Storage
+### 3. 重启一次 web（只此一次）
 
-```
-$DSH_HOME/mcp.json                # user scope (default)
-<project>/.dsh/mcp.json           # project scope (git-shareable; shadows user by name)
-$DSH_HOME/skills-manifest.json    # skill provenance (source/ref/target)
-$DSH_HOME/marketplaces.json       # registered marketplaces
-$DSH_HOME/logs/install.jsonl      # audit trail (every operation, per-item verdicts)
-$DSH_HOME/install/leftover/       # archived sources of un-migrated payloads
+```powershell
+dsh web
 ```
 
-Secrets are never stored: env values are `${VAR}` references, expanded only
-at mount time by the aggregator. Project roots follow the harness skill
-provider's rule (nearest `.git` ancestor).
+**为什么必须重启这一次**：`dsh plugin add` 把插件的两行加进了 bundle 层，
+而 bundle 层只在 boot 时读入——运行中的旧进程看不到它们。这次重启之后，
+**一切改动全部免重启**（见下方热重载矩阵）。
 
-## Commands
+### 4. 验证
+
+```powershell
+dsh --profile install mcp add everything          # 官方测试服务器，无需密钥
+dsh --profile install mcp list                    # 应列出 everything
+dsh --profile install mcp doctor everything       # 诊断运行时/环境变量
+```
+
+web 里：输入框敲 `/`，斜杠菜单应出现 `/mcp`、`/skills`；模型新会话中可见
+`mcp__everything__*` 工具。
+
+---
+
+## 命令速查
 
 ### mcp
 
-```console
-dsh --profile install mcp add github                                  # builtin catalog
-dsh --profile install mcp add uvx:mcp-server-git                       # URI shorthand
-dsh --profile install mcp add myapi --transport http --url <url> --header "Authorization: Bearer ${T}"
-dsh --profile install mcp add custom -- npx -y @scope/server -e API_KEY --timeout 30000
-dsh --profile install mcp list [--format json] | mcp get <name> | mcp remove <name> [--all] [--dry-run]
-dsh --profile install mcp on <name> | mcp off <name> | mcp update <name> ...
-dsh --profile install mcp doctor <name>                               # runtime/env/endpoint checks
+```powershell
+dsh --profile install mcp add github                                   # 内置目录简写
+dsh --profile install mcp add uvx:mcp-server-git                        # URI 简写（派生名字）
+dsh --profile install mcp add zai -- npx -y @z_ai/mcp-server            # 任意服务器（-- 形式）
+dsh --profile install mcp add myapi --transport http --url <url>        # HTTP 服务器
+dsh --profile install mcp list [--format json] | get <n> | remove <n> [--all] [--dry-run]
+dsh --profile install mcp on <n> | off <n> | update <n> ... | doctor <n>
 dsh --profile install mcp import --from claude|codex|mcp-json|claude-plugin|auto [--path <p>]
 ```
 
-- `mcp add <name>` without `--` resolves the builtin catalog
-  (`search <query>` lists it) or `npx:`/`uvx:`/`docker:` URI forms (URI
-  forms install under a derived valid name).
-- Catalog entries that need user-specific arguments (`filesystem`,
-  `sqlite`, `sentry`) refuse the shorthand and point at the `--` form.
-- Imports read `.mcp.json` (Cursor/VS Code/Smithery output),
-  `~/.claude.json`, `~/.codex/config.toml`, or extract a claude-plugin
-  package's content layer (skills + mcpServers). Un-migrated payloads
-  (commands/agents/hooks) are reported with stable `INCOMPATIBLE_*` codes
-  and archived, never destroyed.
+**语法红线**：
+- `--` 是分界线：之后的内容**原样**成为启动命令；`-e` 等选项必须放 `--` 之前；
+- 装了密钥就别带进 `--` 后面（会把明文写进启动参数，见 FAQ）。
 
 ### skills
 
-```console
+```powershell
 dsh --profile install skills add ./my-skill
 dsh --profile install skills add github:owner/repo#subdir@v1.0
-dsh --profile install skills add <path> --link            # symlink (dev mode)
-dsh --profile install skills list | skills remove <name> [--all] [--dry-run] | skills update <name> <source>
+dsh --profile install skills add <path> --link                        # 符号链接（开发模式）
+dsh --profile install skills list | remove <n> [--all] [--dry-run] | update <n> <src>
 ```
 
-Sources: local directories (bundle `SKILL.md` or flat `<name>.md`), git
-specs (`git+URL`, `github:owner/repo`, `owner/repo#subdir@ref` — shallow
-clone + ref pin). Installs land in `~/.dsh/skills` or `<project>/.dsh/skills`,
-which the harness skill provider already watches — **installs hot-reload,
-no restart**. `remove` only touches manifest-tracked installs.
+落位即生效：装进 `~/.dsh/skills` 或 `<project>/.dsh/skills`，harness 的
+skill 提供方自动发现，免重启。
 
-### marketplace / plugin / search
+### 其他
 
-```console
-dsh --profile install marketplace add <name> <url-or-path>
-dsh --profile install marketplace list | remove <name> | sync [<name>]
-dsh --profile install search <query>
-dsh --profile install plugin install <name>@<marketplace> [--extract-content] [--profile <p>]
+```powershell
+dsh --profile install search <query>                                  # 内置 + 市场目录
+dsh --profile install marketplace add|list|remove|sync                 # 市场协议端
+dsh --profile install plugin install <name>@<marketplace> [--extract-content]
+dsh --profile install uninstall [--dry-run] [--purge-log]              # 整体卸载
 ```
 
-Catalogs parse both the DSH-native shape (`{servers, skills, plugins}`) and
-Claude Code marketplace documents (`.claude-plugin/marketplace.json`).
-Plugin entries map by kind: dsh bundles forward to `dsh plugin add`;
-claude-plugin packages — whether local directories, git specs, or GitHub
-URLs — install their content layer with `--extract-content` or report
-`INCOMPATIBLE_PLUGIN` honestly.
+---
 
-## Lifecycle of files the plugin writes
+## 密钥安全（重要）
 
-| Layer | Location | Lifetime |
-|---|---|---|
-| Clone work dir | `$DSH_HOME/install/work/` | Ephemeral: remote sources (skills, claude plugins) are shallow-cloned here, deleted again before the command returns; each clone resets the directory, so interrupted runs cannot accumulate |
-| Leftover archive | `$DSH_HOME/install/leftover/` | Intentional: un-migrated payload sources (commands/agents/hooks) are archived as the "never destroyed" guarantee; `uninstall` clears it |
-| Audit log | `$DSH_HOME/logs/install.jsonl` | Intentional, append-only history; `uninstall --purge-log` deletes it explicitly |
+- 注册表**永不存明文密钥**：`-e ZAI_API_KEY` 存入的是 `${ZAI_API_KEY}`
+  引用，挂载时才从环境变量展开；
+- 正确姿势：`mcp add zai -e ZAI_API_KEY -- npx -y <包>`（`-e` 在 `--` 前）；
+- 密钥只在环境变量里（`setx ZAI_API_KEY "..."`，新终端生效）；
+- 若不慎把明文写进了启动参数或聊天记录，请**轮换密钥**并 `mcp remove`
+  后重装。查看实际存储：`mcp get <n>`——`env` 字段应是 `${...}` 引用。
 
-Out of scope by design: runtime caches of the tools MCP servers run on
-(`~/.npm/_npx`, uv cache, docker images) are private caches owned by those
-runtimes — the plugin detects runtimes but never installs, clears, or
-manages their caches.
+## 热重载矩阵
 
-## Reports & audit
+| 改动 | 是否需重启 |
+|---|---|
+| `dsh plugin add/remove`（装/卸插件包本身） | **需要**（bundle 层只在 boot 读入） |
+| 改 patch 启用/停用聚合器行 | **免重启**（harness 的 patch 热重载，保存即生效） |
+| `mcp add/remove/on/off` | **免重启**（聚合器监视注册表，差分重挂） |
+| `skills add/remove` | **免重启**（skill 提供方自带 watcher） |
 
-Every mutating operation prints per-item verdicts (`✅ imported` /
-`⚠️ partial` / `❌ skipped` / `🚫 failed`) with stable reason codes
-(`DUPLICATE_SERVER`, `SECRET_CONVERTED`, `INCOMPATIBLE_COMMANDS`,
-`RUNTIME_MISSING`, ...) and appends the full report to
-`$DSH_HOME/logs/install.jsonl`. Slash commands render the same reports
-directly in the web UI — command input and output never reach the model.
+## 存储与文件
 
-## Uninstall
-
-```console
-dsh --profile install mcp remove --all [--scope user|project] [--dry-run]
-dsh --profile install skills remove --all [--dry-run]      # manifest-tracked installs only
-dsh --profile install uninstall [--dry-run] [--purge-log]  # everything this plugin manages
+```
+<DSH_HOME>/mcp.json                # user scope 注册表（密钥只存 ${VAR} 引用）
+<project>/.dsh/mcp.json            # project scope（git 可共享，同名覆盖 user）
+<DSH_HOME>/skills-manifest.json    # skill 来源追踪（remove 只删自己装过的）
+<DSH_HOME>/marketplaces.json       # 市场注册
+<DSH_HOME>/logs/install.jsonl      # 审计日志（每次操作逐条裁决，可重放）
+<DSH_HOME>/install/work/           # 克隆过客区（每次 git 克隆前重置，用完即清）
+<DSH_HOME>/install/leftover/       # 未迁移载荷的存档（uninstall 清）
 ```
 
-- `uninstall` removes every marketplace registration, every manifest-tracked
-  skill, the scope's MCP registry file, and the leftover archive — one
-  audited per-item report, idempotent, `--dry-run` writes nothing.
-- Boundaries: manual skills and anything outside the plugin's own paths are
-  **never touched**; the audit log survives by default (the uninstall is
-  itself history) and `--purge-log` deletes it explicitly.
-- The bundle package itself is a profile dependency: remove it with
-  `dsh plugin --profile <name> remove dsh-install`, then drop the
-  `mcp-registry` enable lines from each profile's `cordis.patch.yml`
-  (the `uninstall` report prints both reminders).
+插件代码在 profile 内（`<DSH_HOME>/profiles/<name>/node_modules/`），与数据分离。
 
-## Slash commands
+## 常见问题（FAQ）
 
-`/mcp [list|add ...|remove <n>|on <n>|off <n>]` and
-`/skills [list|add ...|remove <n>|update <n> <src>]` are registered on the
-host command registry, so both the web UI and TUI surfaces pick them up.
-Both share the exact CLI grammar and ops core.
+**Q：`[WARN] Issues with peer dependencies found` 要紧吗？**
+不要紧。本插件故意把 cordis/dsh-mcp-client 等声明为 peer，复用 harness
+安装自身的那份，避免版本漂移。
 
-## Development
+**Q：`dsh plugin add <本地路径>` 为什么有问题？**
+给目录路径是 link 安装，依赖不装进 profile；请用 `pnpm pack` 出的
+tarball。另外路径含 `&` 等 shell 元字符会被 `dsh plugin` 的 shell 转发
+截断（harness 侧行为）——用包名最省心。
 
-```console
-pnpm install
-pnpm --dir packages/dsh-install test        # 126 tests, sandbox-safe (no subprocess spawns)
-pnpm --dir packages/dsh-install typecheck
-pnpm --dir packages/dsh-install build       # tsdown → lib/
+**Q：迁移过 `DSH_HOME`（如 C→D 跨盘复制）后 dsh 启动报错？**
+跨盘复制会把 `profiles/node_modules` 里的 junction（目录链接）解引用成
+普通目录，harness 启动时检测报错。解法：把该目录改名（如
+`node_modules.bak`），harness 会自愈重建全部链接；确认正常后删除 .bak。
+用 robocopy 迁移时加 `/XJ` 可避免。
+
+**Q：`mcp add` 后模型看不到工具？**
+三查：① 聚合器行是否已启用（patch 文件）；② 装完插件包后是否**重启过一次**
+web（bundle 层 boot 才读入）；③ `mcp doctor <n>` 看运行时/环境变量诊断。
+
+## 卸载
+
+```powershell
+dsh --profile install uninstall [--dry-run] [--purge-log]   # 清数据面，日志默认保留
+dsh plugin --profile <name> remove @dsh-tools/dsh-install   # 卸包本体，每个 profile 一次
 ```
 
-Local install during development (relative paths are anchored to your cwd):
+## 开发
 
-```console
-dsh plugin --profile install add ./packages/dsh-install
+```powershell
+pnpm --dir packages/dsh-install run test        # 136 单元/集成测试
+pnpm --dir packages/dsh-install run build       # tsdown → lib/
+pnpm --dir packages/dsh-install pack            # 打包验证
+pnpm --dir packages/dsh-install exec vitest run --config vitest.e2e.config.mjs
+                                                # spawn e2e（真机环境）
 ```
 
-Published packages: `@dsh-tools/dsh-install` on npm (the tarball in
-`.local/dist/` is the pre-publish verification artifact).
-
-Dependency policy: harness-coupled packages (`cordis`, `dsh-cmdline`,
-`dsh-commands`, `dsh-mcp-client`, `schemastery`) are **peerDependencies** —
-profiles resolve them from the harness installation's own node_modules, so
-there is exactly one copy and zero version drift. `dsh-home-paths` and
-`commander` are ordinary dependencies.
-
-## Known limitations (honest list)
-
-- **stdio servers and git sources spawn subprocesses**; the test suite
-  verifies the orchestration around them with fakes plus a real in-process
-  Streamable-HTTP MCP e2e, but spawn paths need a non-sandboxed environment
-  to exercise end to end (local-path installs cover the same code paths).
-- **Shorthand adds are non-interactive**: the builtin catalog is a trusted
-  snapshot and the resolved command is shown in the report; an interactive
-  confirm prompt (with `--yes`) is reserved for a later release.
-- **URI shorthands derive install names** (`uvx:mcp-server-git` →
-  `mcp-server-git`); rename with `mcp update` if you want a different name.
-- **Git-worktree projects** (`.git` is a file, not a directory) are not
-  detected as project roots — identical to the harness skill provider rule.
-- **Rich web popups** (CC-Switch-style forms) require client roster changes
-  in the harness; this bundle contributes host-side slash commands only.
-- Marketplace URL fetches, git cloning, and `dsh plugin` forwarding need
-  network/CLI access; local file sources cover the same code paths in tests.
-
-## Optional: launcher alias
-
-For the exact `claude mcp add`-style ergonomics, the harness launcher can
-alias two verbs to the management profile (same pattern as the built-in
-`dsh web` alias). See `docs/launcher-alias.md` for the precise change to
-`apps/cli/src/args.ts` — the bundle works fully without it.
+发布流程见 [docs/publish.md](../docs/publish.md)，真机验证见
+[docs/verify-checklist.md](../docs/verify-checklist.md)。
 
 ## License
 
