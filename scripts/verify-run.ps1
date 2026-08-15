@@ -1,6 +1,6 @@
 # Real-machine pre-publish verification. Requires an environment that allows
 # spawning piped child processes. All artifacts stay in the project root.
-# Usage: & .local/verify-run.ps1 [-HarnessBin <path to bin.js>]
+# Usage: & scripts/verify-run.ps1 [-HarnessBin <path to bin.js>]
 param([string]$HarnessBin = 'D:\Agents\DeepSeek-Harness\apps\cli\lib\bin.js')
 
 $ErrorActionPreference = 'Continue'
