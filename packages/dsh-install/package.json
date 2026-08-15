@@ -1,6 +1,6 @@
 {
   "name": "@dsh-tools/dsh-install",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Install and manage MCP servers and skills for the DeepSeek Harness: registry-backed install, live remount aggregator, slash commands, ecosystem importers, marketplaces, and auditable install reports.",
   "keywords": [
     "deepseek",
